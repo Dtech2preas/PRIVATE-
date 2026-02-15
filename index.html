@@ -204,6 +204,69 @@
             transform: translateY(-2px);
         }
 
+        /* Facts List */
+        .facts-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .facts-list li {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            margin-bottom: 0.5rem;
+            padding: 1rem;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .facts-list li strong {
+            color: var(--accent-color);
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+
+        /* Cloudflare Accounts */
+        .cf-account-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+        }
+
+        .cf-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .cf-section {
+            margin-top: 1rem;
+            background: rgba(255, 255, 255, 0.02);
+            padding: 1rem;
+            border-radius: 4px;
+        }
+
+        .cf-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .cf-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .cf-list li:last-child { border-bottom: none; }
+
         /* Modal */
         .modal-overlay {
             position: fixed;
@@ -278,6 +341,7 @@
             <button class="tab-btn active" onclick="switchTab('websites')">Websites</button>
             <button class="tab-btn" onclick="switchTab('cloudflare')">Cloudflare Accounts</button>
             <button class="tab-btn" onclick="switchTab('ideas')">Business Ideas</button>
+            <button class="tab-btn" onclick="switchTab('facts')">Facts</button>
         </nav>
 
         <main>
@@ -296,6 +360,7 @@
                     <thead>
                         <tr>
                             <th>Domain</th>
+                            <th>Description</th>
                             <th>Status</th>
                             <th>Notes</th>
                             <th>Actions</th>
@@ -311,18 +376,9 @@
                     <h2>Cloudflare Accounts</h2>
                     <button onclick="showAddModal('cloudflare')">+ Add Account</button>
                 </div>
-                <table id="cloudflare-table">
-                    <thead>
-                        <tr>
-                            <th>Account Name</th>
-                            <th>Linked Domain</th>
-                            <th>Worker URL</th>
-                            <th>System</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody><!-- Dynamic Content --></tbody>
-                </table>
+                <div id="cloudflare-accounts-list">
+                    <!-- Dynamic Content -->
+                </div>
             </div>
 
             <!-- Ideas Tab -->
@@ -334,6 +390,17 @@
                 <div id="ideas-grid" class="card-grid">
                     <!-- Dynamic Content -->
                 </div>
+            </div>
+
+            <!-- Facts Tab -->
+            <div id="tab-facts" class="tab-content hidden">
+                <div class="section-header">
+                    <h2>Facts</h2>
+                    <button onclick="showAddModal('fact')">+ Add Fact</button>
+                </div>
+                <ul id="facts-list" class="facts-list">
+                    <!-- Dynamic Content -->
+                </ul>
             </div>
         </main>
     </div>
@@ -361,9 +428,11 @@
         let appData = {
             websites: [],
             cloudflare: [],
-            ideas: []
+            ideas: [],
+            facts: []
         };
         let currentModalType = '';
+        let currentCFIndex = -1;
 
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
@@ -497,6 +566,35 @@
             renderWebsites();
             renderCloudflare();
             renderIdeas();
+            renderFacts();
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function renderFacts() {
+            const list = document.getElementById('facts-list');
+            if (!list) return;
+            list.innerHTML = '';
+            if (!appData.facts) appData.facts = []; // Safety check
+            appData.facts.forEach((fact, index) => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <div>
+                        <strong>${escapeHtml(fact.header)}</strong>
+                        <span>${escapeHtml(fact.description)}</span>
+                    </div>
+                    <button class="danger" onclick="deleteItem('facts', ${index})">Del</button>
+                `;
+                list.appendChild(li);
+            });
         }
 
         function renderWebsites() {
@@ -509,9 +607,10 @@
                 if (site.status === 'Maintenance') statusClass = 'status-maintenance';
 
                 tr.innerHTML = `
-                    <td><a href="https://${site.domain}" target="_blank" class="text-accent">${site.domain}</a></td>
+                    <td><a href="https://${escapeHtml(site.domain)}" target="_blank" class="text-accent">${escapeHtml(site.domain)}</a></td>
+                    <td>${escapeHtml(site.description)}</td>
                     <td><span class="status-badge ${statusClass}">${site.status}</span></td>
-                    <td>${site.notes}</td>
+                    <td>${escapeHtml(site.notes)}</td>
                     <td>
                         <button class="danger" onclick="deleteItem('websites', ${index})">Del</button>
                     </td>
@@ -521,20 +620,73 @@
         }
 
         function renderCloudflare() {
-            const tbody = document.querySelector('#cloudflare-table tbody');
-            tbody.innerHTML = '';
-            appData.cloudflare.forEach((acc, index) => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${acc.account}</td>
-                    <td>${acc.domain}</td>
-                    <td><a href="${acc.worker}" target="_blank" class="text-accent">Link</a></td>
-                    <td>${acc.system}</td>
-                    <td>
-                        <button class="danger" onclick="deleteItem('cloudflare', ${index})">Del</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
+            const list = document.getElementById('cloudflare-accounts-list');
+            if (!list) return;
+            list.innerHTML = '';
+
+            appData.cloudflare.forEach((acc, accIndex) => {
+                 // Initialize arrays if missing (migration safety)
+                 if (!acc.domains) acc.domains = [];
+                 if (!acc.workers) acc.workers = [];
+
+                 // Display logic
+                 const card = document.createElement('div');
+                 card.className = 'cf-account-card';
+
+                 let domainsHtml = '';
+                 acc.domains.forEach((d, dIndex) => {
+                     domainsHtml += `
+                        <li>
+                            <div>
+                                <span class="text-accent">${escapeHtml(d.url)}</span>
+                                <div style="font-size: 0.9em; color: #888;">${escapeHtml(d.description)}</div>
+                            </div>
+                            <button class="danger" style="padding: 4px 8px; font-size: 0.8em;" onclick="deleteCFItem('domain', ${accIndex}, ${dIndex})">Del</button>
+                        </li>
+                     `;
+                 });
+
+                 let workersHtml = '';
+                 acc.workers.forEach((w, wIndex) => {
+                     workersHtml += `
+                        <li>
+                            <div>
+                                <span class="text-accent">${escapeHtml(w.url)}</span>
+                                <div style="font-size: 0.9em; color: #888;">${escapeHtml(w.description)}</div>
+                            </div>
+                            <button class="danger" style="padding: 4px 8px; font-size: 0.8em;" onclick="deleteCFItem('worker', ${accIndex}, ${wIndex})">Del</button>
+                        </li>
+                     `;
+                 });
+
+                 card.innerHTML = `
+                    <div class="cf-header">
+                        <h3 style="margin:0">${escapeHtml(acc.name || acc.account || 'Unnamed Account')}</h3>
+                        <button class="danger" onclick="deleteItem('cloudflare', ${accIndex})">Delete Account</button>
+                    </div>
+
+                    <div class="cf-section">
+                        <div class="flex justify-between items-center">
+                            <strong>Domains</strong>
+                            <button style="font-size: 0.8em;" onclick="showAddModal('cf-domain', ${accIndex})">+ Add Domain</button>
+                        </div>
+                        <ul class="cf-list">
+                            ${domainsHtml || '<li style="color: #666; justify-content: center;">No domains linked</li>'}
+                        </ul>
+                    </div>
+
+                    <div class="cf-section">
+                         <div class="flex justify-between items-center">
+                            <strong>Workers</strong>
+                            <button style="font-size: 0.8em;" onclick="showAddModal('cf-worker', ${accIndex})">+ Add Worker</button>
+                        </div>
+                        <ul class="cf-list">
+                            ${workersHtml || '<li style="color: #666; justify-content: center;">No workers linked</li>'}
+                        </ul>
+                    </div>
+                 `;
+
+                 list.appendChild(card);
             });
         }
 
@@ -545,8 +697,8 @@
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.innerHTML = `
-                    <h3 class="text-accent" style="margin-top:0">${idea.title}</h3>
-                    <p>${idea.description}</p>
+                    <h3 class="text-accent" style="margin-top:0">${escapeHtml(idea.title)}</h3>
+                    <p>${escapeHtml(idea.description)}</p>
                     <div style="text-align: right; margin-top: 1rem;">
                         <button class="danger" onclick="deleteItem('ideas', ${index})">Delete</button>
                     </div>
@@ -572,8 +724,21 @@
             }
         }
 
-        function showAddModal(type) {
+        function deleteCFItem(type, accIndex, itemIndex) {
+            if (confirm("Delete this item?")) {
+                if (type === 'domain') {
+                    appData.cloudflare[accIndex].domains.splice(itemIndex, 1);
+                } else if (type === 'worker') {
+                    appData.cloudflare[accIndex].workers.splice(itemIndex, 1);
+                }
+                renderAll();
+                saveData();
+            }
+        }
+
+        function showAddModal(type, index = -1) {
             currentModalType = type;
+            currentCFIndex = index;
             const container = document.getElementById('modal-form-container');
             const title = document.getElementById('modal-title');
             container.innerHTML = '';
@@ -582,6 +747,7 @@
                 title.innerText = "Add New Website";
                 container.innerHTML = `
                     <input type="text" id="input-domain" placeholder="Domain (e.g. example.com)">
+                    <input type="text" id="input-description" placeholder="Description">
                     <select id="input-status">
                         <option value="Up">Up</option>
                         <option value="Down">Down</option>
@@ -592,16 +758,31 @@
             } else if (type === 'cloudflare') {
                 title.innerText = "Add Cloudflare Account";
                 container.innerHTML = `
-                    <input type="text" id="input-account" placeholder="Account Name">
-                    <input type="text" id="input-cf-domain" placeholder="Linked Domain">
-                    <input type="text" id="input-worker" placeholder="Worker URL">
-                    <input type="text" id="input-system" placeholder="System Name">
+                    <input type="text" id="input-account-name" placeholder="Account Name / Email">
+                `;
+            } else if (type === 'cf-domain') {
+                 title.innerText = "Add Domain to " + (appData.cloudflare[index]?.name || 'Account');
+                 container.innerHTML = `
+                    <input type="text" id="input-cf-url" placeholder="Domain URL">
+                    <input type="text" id="input-cf-desc" placeholder="Description">
+                `;
+            } else if (type === 'cf-worker') {
+                 title.innerText = "Add Worker to " + (appData.cloudflare[index]?.name || 'Account');
+                 container.innerHTML = `
+                    <input type="text" id="input-cf-url" placeholder="Worker URL">
+                    <input type="text" id="input-cf-desc" placeholder="Description">
                 `;
             } else if (type === 'idea') {
                 title.innerText = "Add Business Idea";
                 container.innerHTML = `
                     <input type="text" id="input-idea-title" placeholder="Idea Title">
                     <textarea id="input-idea-desc" placeholder="Description" rows="5"></textarea>
+                `;
+            } else if (type === 'fact') {
+                title.innerText = "Add Professional Point";
+                container.innerHTML = `
+                    <input type="text" id="input-fact-header" placeholder="Header">
+                    <textarea id="input-fact-desc" placeholder="Description" rows="3"></textarea>
                 `;
             }
 
@@ -615,24 +796,42 @@
         function confirmAdd() {
             if (currentModalType === 'website') {
                 const domain = document.getElementById('input-domain').value;
+                const description = document.getElementById('input-description').value;
                 const status = document.getElementById('input-status').value;
                 const notes = document.getElementById('input-notes').value;
                 if (domain) {
-                    appData.websites.push({ domain, status, notes });
+                    appData.websites.push({ domain, description, status, notes });
                 }
             } else if (currentModalType === 'cloudflare') {
-                const account = document.getElementById('input-account').value;
-                const domain = document.getElementById('input-cf-domain').value;
-                const worker = document.getElementById('input-worker').value;
-                const system = document.getElementById('input-system').value;
-                if (account) {
-                    appData.cloudflare.push({ account, domain, worker, system });
+                const name = document.getElementById('input-account-name').value;
+                if (name) {
+                    appData.cloudflare.push({ name, domains: [], workers: [] });
+                }
+            } else if (currentModalType === 'cf-domain') {
+                const url = document.getElementById('input-cf-url').value;
+                const description = document.getElementById('input-cf-desc').value;
+                if (url && currentCFIndex > -1) {
+                    if (!appData.cloudflare[currentCFIndex].domains) appData.cloudflare[currentCFIndex].domains = [];
+                    appData.cloudflare[currentCFIndex].domains.push({ url, description });
+                }
+            } else if (currentModalType === 'cf-worker') {
+                const url = document.getElementById('input-cf-url').value;
+                const description = document.getElementById('input-cf-desc').value;
+                if (url && currentCFIndex > -1) {
+                    if (!appData.cloudflare[currentCFIndex].workers) appData.cloudflare[currentCFIndex].workers = [];
+                    appData.cloudflare[currentCFIndex].workers.push({ url, description });
                 }
             } else if (currentModalType === 'idea') {
                 const title = document.getElementById('input-idea-title').value;
                 const description = document.getElementById('input-idea-desc').value;
                 if (title) {
                     appData.ideas.push({ title, description });
+                }
+            } else if (currentModalType === 'fact') {
+                const header = document.getElementById('input-fact-header').value;
+                const description = document.getElementById('input-fact-desc').value;
+                if (header) {
+                    appData.facts.push({ header, description });
                 }
             }
 
