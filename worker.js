@@ -35,7 +35,8 @@ async function handleRequest(request) {
         data = JSON.stringify({
           websites: [],
           cloudflare: [],
-          ideas: []
+          ideas: [],
+          facts: []
         });
       }
 
@@ -51,7 +52,8 @@ async function handleRequest(request) {
       const newData = {
         websites: body.websites || [],
         cloudflare: body.cloudflare || [],
-        ideas: body.ideas || []
+        ideas: body.ideas || [],
+        facts: body.facts || []
       };
 
       // Save to KV
