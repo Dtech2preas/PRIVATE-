@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DTech Private Dashboard</title>
+    <script type="text/javascript" src="//imasdk.googleapis.com/js/sdkloader/ima3.js"></script>
     <style>
         :root {
             --bg-color: #000000;
@@ -533,6 +534,96 @@
             }
         }
 
+        /* Ad Components */
+        #watch-ad-btn {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1000;
+            background-color: var(--card-bg);
+            border: 2px solid var(--accent-color);
+            color: var(--accent-color);
+            border-radius: 50px;
+            padding: 12px 24px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            box-shadow: 0 0 15px var(--accent-glow);
+            animation: pulse-border 2s infinite;
+        }
+
+        #watch-ad-btn:hover {
+            background-color: var(--accent-color);
+            color: var(--bg-color);
+        }
+
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(0, 243, 255, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 243, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 243, 255, 0); }
+        }
+
+        @media (max-width: 768px) {
+            #watch-ad-btn {
+                bottom: 85px; /* Above mobile nav bar */
+                right: 1rem;
+                padding: 10px 16px;
+                font-size: 0.9rem;
+            }
+        }
+
+        #ad-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .ad-modal-content {
+            background: var(--bg-color);
+            position: relative;
+            width: 90%;
+            max-width: 800px;
+            aspect-ratio: 16/9;
+            border: 1px solid var(--accent-color);
+            border-radius: 8px;
+            box-shadow: 0 0 30px var(--accent-glow);
+            overflow: hidden;
+        }
+
+        #adContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #videoElement {
+            width: 100%;
+            height: 100%;
+            background-color: black;
+        }
+
+        .close-ad-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 2001;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--accent-color);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
     </style>
 </head>
 <body>
@@ -627,6 +718,20 @@
                 </ul>
             </div>
         </main>
+    </div>
+
+    <!-- Watch Ad Button -->
+    <button id="watch-ad-btn" onclick="openAdModal()">
+        ▶ Watch Ad
+    </button>
+
+    <!-- Ad Modal Container -->
+    <div id="ad-modal-overlay" class="hidden">
+        <div class="ad-modal-content">
+            <button class="close-ad-btn" onclick="closeAdModal()">Skip / Close</button>
+            <video id="videoElement" playsinline></video>
+            <div id="adContainer"></div>
+        </div>
     </div>
 
     <!-- Add Item Modal -->
@@ -1117,6 +1222,139 @@
         document.getElementById('add-modal').addEventListener('click', (e) => {
             if (e.target.id === 'add-modal') closeModal();
         });
+
+        // --- Ad IMA SDK Implementation ---
+        let adsManager;
+        let adsLoader;
+        let adDisplayContainer;
+        let playButton;
+        let videoContent;
+        let adModalOverlay = document.getElementById('ad-modal-overlay');
+
+        const adTagUrl = "https://exalted-engineering.com/dRmOF.zVdeGqNrvoZoGUUM/xebm/9/uHZWUVlmkMPIT/Yi5BNzz/kvwZNWz_MMtoNnj/kM3fOSTZAd3VN/ypZ_sya/WD1/pqdtDV0hxu";
+
+        function initIMA() {
+            videoContent = document.getElementById('videoElement');
+            adDisplayContainer = new google.ima.AdDisplayContainer(
+                document.getElementById('adContainer'), videoContent);
+
+            // Initialize adsLoader
+            adsLoader = new google.ima.AdsLoader(adDisplayContainer);
+            adsLoader.addEventListener(
+                google.ima.AdsManagerLoadedEvent.Type.ADS_MANAGER_LOADED,
+                onAdsManagerLoaded,
+                false);
+            adsLoader.addEventListener(
+                google.ima.AdErrorEvent.Type.AD_ERROR,
+                onAdError,
+                false);
+
+            // Let the video element resize to modal bounds
+            videoContent.addEventListener('ended', function() {
+                adsLoader.contentComplete();
+            });
+        }
+
+        function requestAd() {
+            // Request video ads.
+            var adsRequest = new google.ima.AdsRequest();
+            adsRequest.adTagUrl = adTagUrl;
+
+            // Specify the linear and nonlinear slot sizes
+            adsRequest.linearAdSlotWidth = 800; // Modal max width
+            adsRequest.linearAdSlotHeight = 450; // 16:9 roughly
+
+            adsRequest.nonLinearAdSlotWidth = 800;
+            adsRequest.nonLinearAdSlotHeight = 150;
+
+            adsLoader.requestAds(adsRequest);
+        }
+
+        function onAdsManagerLoaded(adsManagerLoadedEvent) {
+            var adsRenderingSettings = new google.ima.AdsRenderingSettings();
+            adsRenderingSettings.restoreCustomPlaybackStateOnAdBreakComplete = true;
+
+            adsManager = adsManagerLoadedEvent.getAdsManager(videoContent, adsRenderingSettings);
+
+            // Add listeners to the required events.
+            adsManager.addEventListener(google.ima.AdErrorEvent.Type.AD_ERROR, onAdError);
+            adsManager.addEventListener(google.ima.AdEvent.Type.CONTENT_PAUSE_REQUEST, onContentPauseRequested);
+            adsManager.addEventListener(google.ima.AdEvent.Type.CONTENT_RESUME_REQUEST, onContentResumeRequested);
+            adsManager.addEventListener(google.ima.AdEvent.Type.ALL_ADS_COMPLETED, onAdEvent);
+
+            // Listen to any additional events, if necessary.
+            adsManager.addEventListener(google.ima.AdEvent.Type.LOADED, onAdEvent);
+            adsManager.addEventListener(google.ima.AdEvent.Type.STARTED, onAdEvent);
+            adsManager.addEventListener(google.ima.AdEvent.Type.COMPLETE, onAdEvent);
+
+            try {
+                // Initialize the ads manager.
+                adsManager.init(800, 450, google.ima.ViewMode.NORMAL);
+                adsManager.start();
+            } catch (adError) {
+                // An error may be thrown if there was a problem with the VAST response.
+                console.log("Error playing ad", adError);
+                closeAdModal();
+            }
+        }
+
+        function onAdEvent(adEvent) {
+            var ad = adEvent.getAd();
+            switch (adEvent.type) {
+                case google.ima.AdEvent.Type.LOADED:
+                    if (!ad.isLinear()) {
+                        videoContent.play();
+                    }
+                    break;
+                case google.ima.AdEvent.Type.ALL_ADS_COMPLETED:
+                case google.ima.AdEvent.Type.COMPLETE:
+                    closeAdModal();
+                    break;
+            }
+        }
+
+        function onAdError(adErrorEvent) {
+            console.log("Ad Error: " + adErrorEvent.getError());
+            if(adsManager) {
+                adsManager.destroy();
+            }
+            closeAdModal();
+        }
+
+        function onContentPauseRequested() {
+            videoContent.pause();
+        }
+
+        function onContentResumeRequested() {
+            // we don't have main video content so we just close or do nothing
+        }
+
+        // Initialize IMA on window load
+        window.addEventListener('load', function() {
+            initIMA();
+        });
+
+        function openAdModal() {
+            adModalOverlay.classList.remove('hidden');
+            // Must initialize ad container from a user action
+            adDisplayContainer.initialize();
+            try {
+                 // re-request ad each time it is opened if necessary or if destroyed previously
+                 if(adsManager) {
+                     adsManager.destroy();
+                 }
+                 requestAd();
+            } catch (e) {
+                 console.log("Error initializing ad", e);
+            }
+        }
+
+        function closeAdModal() {
+            adModalOverlay.classList.add('hidden');
+            if (adsManager) {
+                adsManager.stop();
+            }
+        }
 
     </script>
 </body>
